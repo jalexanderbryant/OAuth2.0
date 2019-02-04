@@ -5,18 +5,37 @@ from sqlalchemy import create_engine
  
 Base = declarative_base()
 
+# Add a new class of User
+class User(Base):
+    __tablename__ = 'user'
+
+    name = Column(String(250), nullable=False)
+    email = Column(String(250), nullable=False)
+    picture = Column(String(250))
+    id = Column(Integer, primary_key=True)
+
+    @property
+    def serialize(self):
+        return {
+            'id': self.id,
+            'name': self.id,
+            'email': self.email,
+            'picture': self.picture,
+        }
+
 class Restaurant(Base):
     __tablename__ = 'restaurant'
-   
+    
     id = Column(Integer, primary_key=True)
     name = Column(String(250), nullable=False)
-
+    user_id = Column(Integer, ForeignKey('user.id'))
     @property
     def serialize(self):
        """Return object data in easily serializeable format"""
        return {
-           'name'         : self.name,
-           'id'           : self.id,
+           'name':      self.name,
+           'user_id':   self.user_id,
+           'id':        self.id,
        }
  
 class MenuItem(Base):
@@ -30,7 +49,7 @@ class MenuItem(Base):
     course = Column(String(250))
     restaurant_id = Column(Integer,ForeignKey('restaurant.id'))
     restaurant = relationship(Restaurant)
-
+    user_id = Column(Integer, ForeignKey('user.id'))
 
     @property
     def serialize(self):
@@ -41,11 +60,11 @@ class MenuItem(Base):
            'id'         : self.id,
            'price'         : self.price,
            'course'         : self.course,
+           'user_id':   self.user_id,
        }
 
 
 
-engine = create_engine('sqlite:///restaurantmenu.db')
- 
+engine = create_engine('sqlite:///restaurantmenuwithusers.db')
 
 Base.metadata.create_all(engine)
