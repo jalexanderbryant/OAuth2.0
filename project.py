@@ -22,7 +22,7 @@ CLIENT_ID = json.loads(open('client_secrets.json', 'r')
 APPLICATION_NAME = "Restaurant Menu Application"
 
 #Connect to Database and create database session
-engine = create_engine('sqlite:///restaurantmenuwithusers.db')
+engine = create_engine('sqlite:///restaurantmenuwithusers_new.db')
 Base.metadata.bind = engine
 
 DBSession = sessionmaker(bind=engine)
@@ -200,7 +200,10 @@ def restaurantsJSON():
 @app.route('/restaurant/')
 def showRestaurants():
   restaurants = session.query(Restaurant).order_by(asc(Restaurant.name))
-  return render_template('restaurants.html', restaurants = restaurants)
+  if 'username' not in login_session:
+      return render_template('publicrestaurants.html', restaurants=restaurants)
+  else:
+      return render_template('restaurants.html', restaurants = restaurants)
 
 #Create a new restaurant
 @app.route('/restaurant/new/', methods=['GET','POST'])
@@ -240,6 +243,8 @@ def deleteRestaurant(restaurant_id):
     if 'username' not in login_session:
         return redirect('/login')
     restaurantToDelete = session.query(Restaurant).filter_by(id = restaurant_id).one()
+    if not is_owner(restaurant):
+        return redirect('/restaurant')
     if request.method == 'POST':
         session.delete(restaurantToDelete)
         flash('%s Successfully Deleted' % restaurantToDelete.name)
@@ -254,15 +259,28 @@ def deleteRestaurant(restaurant_id):
 def showMenu(restaurant_id):
     restaurant = session.query(Restaurant).filter_by(id = restaurant_id).one()
     items = session.query(MenuItem).filter_by(restaurant_id = restaurant_id).all()
-    return render_template('menu.html', items = items, restaurant = restaurant)
-
+    # check if a user is signed in AND that user is the creator of the rest
+    print("debug_showMenu", "Current viewer is owner", is_owner(restaurant))
+    if is_owner(restaurant):
+    #   Get creator
+        creator = getUserInfo(restaurant.user_id)
+    #   Render private menu
+        return render_template('menu.html', items=items, creator=creator)
+    # Render public menu
+    else:
+        return render_template('publicmenu.html', items = items, restaurant = restaurant)
+        
 
 #Create a new menu item
 @app.route('/restaurant/<int:restaurant_id>/menu/new/',methods=['GET','POST'])
 def newMenuItem(restaurant_id):
-    if 'username' not in login_session:
-        return redirect('/login')
+    #if 'username' not in login_session:
+     #   return redirect('/login')
     restaurant = session.query(Restaurant).filter_by(id = restaurant_id).one()
+
+    if not is_owner(restaurant):
+        return redirect('/restaurant')
+
     if request.method == 'POST':
         newItem = MenuItem(name = request.form['name'],
                            description = request.form['description'],
@@ -283,6 +301,9 @@ def editMenuItem(restaurant_id, menu_id):
     if 'username' not in login_session:
         return redirect('/login')
     editedItem = session.query(MenuItem).filter_by(id = menu_id).one()
+    if not is_owner(editedItem):
+        return redirect('/restaurant')
+
     restaurant = session.query(Restaurant).filter_by(id = restaurant_id).one()
     if request.method == 'POST':
         if request.form['name']:
@@ -308,6 +329,8 @@ def deleteMenuItem(restaurant_id,menu_id):
         return redirect('/login')
     restaurant = session.query(Restaurant).filter_by(id = restaurant_id).one()
     itemToDelete = session.query(MenuItem).filter_by(id = menu_id).one() 
+    if not is_owner(itemToDelete):
+        return redirect('/restaurant')
     if request.method == 'POST':
         session.delete(itemToDelete)
         session.commit()
@@ -336,6 +359,11 @@ def getUserId(email):
         return user.id
     except:
         return None
+def is_owner(restaurant):
+    if 'username' not in login_session or restaurant.user_id is None:
+        return False
+    else:
+        return login_session['username'] == getUserInfo(restaurant.user_id).name
 
 if __name__ == '__main__':
   app.secret_key = 'super_secret_key'
